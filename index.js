@@ -36,7 +36,6 @@ async function checkInstagramStory() {
       // Sayfanın tam yüklenmesi için 10 saniye bekle
       console.log("Sayfa yükleniyor, 5 saniye bekleniyor...");
       await page.waitForTimeout(5000);
-      await sendTelegramMessage("🔔 <b>Yeni Hikaye Paylaşıldı!</b>\n\nRandevu formu otomatik olarak dolduruluyor...");
       // Login popup'ını bekle ve kapat butonuna tıkla
       await page.getByRole("button", { name: "Kapat" }).click();
       console.log("Popup kapatıldı");
