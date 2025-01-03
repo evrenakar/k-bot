@@ -21,3 +21,5 @@ npx playwright install chromium
 ```bash
 yarn start
 ```
+
+- cron: '*/10 6-13 * * 1-5'  # UTC 06:00-13:59 (Türkiye saati ile 09:00-16:59)
