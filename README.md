@@ -1,6 +1,4 @@
-# Kosmos Vize Instagram Bot
-
-Bu bot, @kosmosvize Instagram hesabındaki hikayeleri kontrol eder ve yeni bir hikaye paylaşıldığında otomatik olarak randevu formunu doldurur.
+# K-Bot
 
 ## Kurulum
 
@@ -23,5 +21,3 @@ npx playwright install chromium
 ```bash
 yarn start
 ```
-
-Bot her 10 dakikada bir Instagram hikayelerini kontrol edecek ve yeni bir hikaye bulduğunda randevu formunu dolduracaktır.

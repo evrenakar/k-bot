@@ -1,6 +1,23 @@
 require("dotenv").config();
 const { chromium } = require("playwright");
 const cron = require("node-cron");
+const axios = require("axios");
+
+async function sendTelegramMessage(message) {
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    
+    await axios.post(url, {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML'
+    });
+  } catch (error) {
+    console.error('Telegram mesajı gönderilemedi:', error);
+  }
+}
 
 async function checkInstagramStory() {
   const browser = await chromium.launch({ headless: false });
@@ -16,7 +33,7 @@ async function checkInstagramStory() {
       // Sayfanın tam yüklenmesi için 10 saniye bekle
       console.log("Sayfa yükleniyor, 5 saniye bekleniyor...");
       await page.waitForTimeout(5000);
-
+      await sendTelegramMessage("🔔 <b>Yeni Hikaye Paylaşıldı!</b>\n\nRandevu formu otomatik olarak dolduruluyor...");
       // Login popup'ını bekle ve kapat butonuna tıkla
       await page.getByRole("button", { name: "Kapat" }).click();
       console.log("Popup kapatıldı");
@@ -33,16 +50,14 @@ async function checkInstagramStory() {
       const storyButton = page.locator(
         'header div[role="button"][style="cursor: pointer;"]'
       );
-      const isExists = (await storyButton.count()) > 0;
+      const storyExists = (await storyButton.count()) > 0;
 
-      if (isExists) {
-        console.log("Story butonu bulundu, tıklanıyor...");
-        await storyButton.click();
-
-        console.log("Hikaye bulundu! Randevu formunu dolduruyorum...");
-        await fillAppointmentForm();
+      if (storyExists) {
+        console.log("Yeni hikaye bulundu!");
+        await sendTelegramMessage("🔔 <b>Yeni Hikaye Paylaşıldı!</b>\n\nRandevu formu otomatik olarak dolduruluyor...");
+        /* await fillAppointmentForm(); */
       } else {
-        console.log("Story butonu bulunamadı");
+        console.log("Henüz yeni hikaye yok.");
       }
     } catch (e) {
       console.log("Story kontrolünde hata:", e.message);

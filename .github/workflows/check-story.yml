@@ -1,0 +1,35 @@
+name: Check Instagram Story
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Her 10 dakikada bir çalışır
+  workflow_dispatch:  # Manuel tetikleme için
+
+jobs:
+  check-story:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: yarn install
+      
+    - name: Install Playwright
+      run: npx playwright install chromium
+      
+    - name: Run story check
+      env:
+        IG_USERNAME: ${{ secrets.IG_USERNAME }}
+        IG_PASSWORD: ${{ secrets.IG_PASSWORD }}
+        TC_1: ${{ secrets.TC_1 }}
+        TC_2: ${{ secrets.TC_2 }}
+        TC_3: ${{ secrets.TC_3 }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: node index.js
