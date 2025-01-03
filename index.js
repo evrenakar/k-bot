@@ -28,17 +28,33 @@ async function solveCaptcha(page) {
     
     // Sayfadaki reCAPTCHA elementini bul
     const siteKey = await page.evaluate(() => {
+      // İframe içindeki site key'i bul
       const iframe = document.querySelector('iframe[src*="recaptcha"]');
       if (iframe) {
         const url = new URL(iframe.src);
         return url.searchParams.get('k');
       }
-      return null;
+      
+      // Div üzerindeki site key'i kontrol et
+      const div = document.querySelector('.g-recaptcha');
+      if (div) {
+        return div.getAttribute('data-sitekey');
+      }
+      
+      // Sayfa kaynağında site key'i ara
+      const scripts = document.getElementsByTagName('script');
+      for (const script of scripts) {
+        const match = script.textContent.match(/sitekey:\s*['"]([^'"]+)['"]/);
+        if (match) {
+          return match[1];
+        }
+      }
+      
+      return '6LcwI6ApAAAAAJPe3MGEqLsqUnijh45z0Jfvycg9'; // Yedek site key
     });
 
     if (!siteKey) {
-      console.log("Captcha bulunamadı, devam ediliyor...");
-      return true;
+      throw new Error("Site key bulunamadı!");
     }
 
     console.log("reCAPTCHA site key bulundu:", siteKey);
@@ -46,20 +62,45 @@ async function solveCaptcha(page) {
     // 2captcha ile captcha'yı çöz
     const result = await solver.recaptcha({
       sitekey: siteKey,
-      url: page.url(),
-      invisible: true
+      url: await page.url(),
+      invisible: true,
+      action: 'verify'
     });
 
     console.log("Captcha çözüldü, yanıt uygulanıyor...");
 
     // Çözümü sayfaya uygula
     await page.evaluate((token) => {
-      window.grecaptcha.enterprise.execute = () => Promise.resolve(token);
+      // reCAPTCHA v3 için
+      if (typeof grecaptcha !== 'undefined' && grecaptcha.enterprise) {
+        grecaptcha.enterprise.execute = () => Promise.resolve(token);
+      }
+      
+      // reCAPTCHA v2 için
+      const textarea = document.getElementById('g-recaptcha-response') || 
+                      document.createElement('textarea');
+      textarea.id = 'g-recaptcha-response';
+      textarea.innerHTML = token;
+      textarea.value = token;
+      
+      if (!document.getElementById('g-recaptcha-response')) {
+        textarea.style.display = 'none';
+        document.body.appendChild(textarea);
+      }
+      
+      // Callback fonksiyonunu çağır
+      if (typeof window.captchaCallback === 'function') {
+        window.captchaCallback(token);
+      }
     }, result.data);
+
+    // Token uygulandıktan sonra kısa bir bekleme
+    await page.waitForTimeout(2000);
 
     return true;
   } catch (error) {
     console.error("Captcha çözme hatası:", error);
+    await sendTelegramMessage(`❌ <b>Captcha Hatası!</b>\n\n${error.message}`);
     return false;
   }
 }
@@ -119,47 +160,87 @@ async function checkInstagramStory() {
 
 async function fillAppointmentForm() {
   const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    bypassCSP: true
+  });
   const page = await context.newPage();
+  
 
   try {
-    // Siteye git
-    await page.goto('https://basvuru.kosmosvize.com.tr/appointmentform');
+    console.log("Randevu formu dolduruluyor...");
+    await page.goto('https://basvuru.kosmosvize.com.tr/appointmentform', {
+      waitUntil: 'networkidle',
+      timeout: 60000
+    });
+
+    // Sayfanın tam yüklenmesini bekle
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(2000);
+
+    // Form doldurma işlemleri
     await page.locator('#cities').press('Tab');
     await page.locator('span').filter({ hasText: 'Sonraki' }).press('Tab');
-   
+    await page.waitForTimeout(1000);
+    
     await page.getByText('Sonraki').click();
+    await page.waitForTimeout(2000);
    
     await page.locator('#cities').selectOption('Tekirdag');
     await page.locator('#buttonContainer').getByText('Edirne').click();
     await page.getByText('Sonraki').click();
+    await page.waitForTimeout(2000);
+
+    // Form elemanlarının yüklenmesini bekle
+    await page.waitForSelector('[id="__BVID__125"]');
+    await page.waitForSelector('[id="__BVID__132"]');
+    await page.waitForSelector('[id="__BVID__129"]');
 
     await page.locator('[id="__BVID__125"]').getByRole('combobox').selectOption('2');
     await page.locator('[id="__BVID__132"]').getByRole('combobox').selectOption('16');
     await page.locator('[id="__BVID__129"]').getByRole('combobox').selectOption('3');
-    await page.locator('[id="__BVID__170"]').click();
-    await page.locator('[id="__BVID__170"]').fill(process.env.TC_1);
-    await page.locator('[id="__BVID__173"]').click();
-    await page.locator('[id="__BVID__173"]').click();
-    await page.locator('[id="__BVID__173"]').fill(process.env.TC_2);
-    await page.locator('[id="__BVID__176"]').click();
-    await page.locator('[id="__BVID__176"]').fill(process.env.TC_3);
-    await page.getByLabel('2').locator('div').filter({ hasText: 'Başvuru Yapacak Kişi Sayısı*' }).nth(1).click();
-    await page.getByText('Sonraki').click();
-    await page.waitForTimeout(5000);
     
-    // Form gönderildikten sonra ikinci bir captcha kontrolü
-    const secondCaptchaSolved = await solveCaptcha(page);
-    if (!secondCaptchaSolved) {
-      throw new Error("İkinci captcha çözülemedi!");
+    // TC Kimlik numaralarını doldur
+    console.log("TC Kimlik numaraları dolduruluyor...");
+    for (const [fieldId, tcNo] of [
+      ['__BVID__170', process.env.TC_1],
+      ['__BVID__173', process.env.TC_2],
+      ['__BVID__176', process.env.TC_3]
+    ]) {
+      await page.locator(`[id="${fieldId}"]`).click();
+      await page.locator(`[id="${fieldId}"]`).fill(tcNo);
+      await page.waitForTimeout(1000);
     }
 
+    await page.getByLabel('2').locator('div').filter({ hasText: 'Başvuru Yapacak Kişi Sayısı*' }).nth(1).click();
+    
+    // Captcha çözme ve form gönderme
+    console.log("Captcha çözülüyor...");
+    const captchaSolved = await solveCaptcha(page);
+    if (!captchaSolved) {
+      throw new Error("Captcha çözülemedi!");
+    }
+
+    // Captcha çözüldükten sonra biraz bekle
+    await page.waitForTimeout(3000);
+    
+    // Formu gönder
+    await page.getByText('Sonraki').click();
+    console.log("Form gönderildi, sonuç bekleniyor...");
+    
+    // Sonuç için bekle
+    await page.waitForTimeout(5000);
+
     console.log("Randevu formu başarıyla dolduruldu!");
+    await sendTelegramMessage("✅ <b>Başarılı!</b>\n\nRandevu formu dolduruldu.");
     
   } catch (error) {
     console.error("Form doldurma hatası:", error);
+    await sendTelegramMessage(`❌ <b>Hata!</b>\n\nForm doldurulurken bir hata oluştu: ${error.message}`);
   } finally {
-    /* await browser.close(); */
+    if (process.env.NODE_ENV !== 'development') {
+      await browser.close();
+    }
   }
 }
 
