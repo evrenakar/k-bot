@@ -2,7 +2,7 @@ name: Check Instagram Story
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Her 10 dakikada bir çalışır
+    - cron: '*/10 9-16 * * 1-5'  # Pazartesi-Cuma, 09:00-16:59 arası her 10 dakikada bir
   workflow_dispatch:  # Manuel tetikleme için
 
 jobs:
