@@ -29,7 +29,8 @@ async function checkInstagramStory() {
 
   try {
     // Instagram profiline git
-    await page.goto("https://www.instagram.com/kosmosvize/");
+    /* await page.goto("https://www.instagram.com/kosmosvize/"); */
+    await page.goto("https://www.instagram.com/trakyasinirkapilari/");
 
     // Popup'ı kapatmak için bekle ve kapat
     try {
@@ -128,12 +129,13 @@ function isWorkingHours() {
 
 // Her 10 dakikada bir kontrol et
 cron.schedule("*/10 * * * *", () => {
-  if (isWorkingHours()) {
+  checkInstagramStory();
+  /* if (isWorkingHours()) {
     console.log("Mesai saatleri içinde, hikaye kontrolü yapılıyor...");
     checkInstagramStory();
   } else {
     console.log("Mesai saatleri dışında, kontrol yapılmıyor.");
-  }
+  } */
 });
 
 // İlk kontrolü hemen yap
