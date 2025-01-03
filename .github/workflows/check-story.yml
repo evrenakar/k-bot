@@ -18,11 +18,14 @@ jobs:
         node-version: '18'
         
     - name: Install dependencies
-      run: yarn install
-      
-    - name: Install Playwright
-      run: npx playwright install chromium
-      
+      run: |
+        yarn install
+        
+    - name: Install Playwright Browsers
+      run: |
+        npx playwright install chromium
+        npx playwright install-deps chromium
+        
     - name: Run story check
       env:
         IG_USERNAME: ${{ secrets.IG_USERNAME }}
@@ -32,4 +35,5 @@ jobs:
         TC_3: ${{ secrets.TC_3 }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: node index.js
+      run: |
+        node index.js
