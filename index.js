@@ -212,7 +212,7 @@ async function fillAppointmentForm() {
 
     // Sayfanın tam yüklenmesini bekle
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     // Form doldurma işlemleri
     await page.locator('#cities').press('Tab');
@@ -220,12 +220,12 @@ async function fillAppointmentForm() {
     await page.waitForTimeout(1000);
     
     await page.getByText('Sonraki').click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
    
     await page.locator('#cities').selectOption('Tekirdag');
     await page.locator('#buttonContainer').getByText('Edirne').click();
     await page.getByText('Sonraki').click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     // Form elemanlarının yüklenmesini bekle
     await page.waitForSelector('[id="__BVID__125"]');
@@ -258,14 +258,14 @@ async function fillAppointmentForm() {
     }
 
     // Captcha çözüldükten sonra biraz bekle
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1000);
     
     // Formu gönder
     await page.getByText('Sonraki').click();
     console.log("Form gönderildi, sonuç bekleniyor...");
     
     // Sonuç için bekle
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(1000);
 
     console.log("Randevu formu başarıyla dolduruldu!");    
   } catch (error) {
