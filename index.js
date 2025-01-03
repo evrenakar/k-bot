@@ -38,6 +38,7 @@ async function solveCaptcha(page) {
       // Div üzerindeki site key'i kontrol et
       const div = document.querySelector('.g-recaptcha');
       if (div) {
+        console.log("Site key bulundu:", div.getAttribute('data-sitekey'));
         return div.getAttribute('data-sitekey');
       }
       
@@ -46,6 +47,7 @@ async function solveCaptcha(page) {
       for (const script of scripts) {
         const match = script.textContent.match(/sitekey:\s*['"]([^'"]+)['"]/);
         if (match) {
+          console.log("Site key bulundu:", match[1]);
           return match[1];
         }
       }
@@ -59,23 +61,58 @@ async function solveCaptcha(page) {
 
     console.log("reCAPTCHA site key bulundu:", siteKey);
 
-    // 2captcha ile captcha'yı çöz
-    const result = await solver.recaptcha({
-      sitekey: siteKey,
-      url: await page.url(),
-      invisible: true,
-      action: 'verify'
-    });
+    // 2captcha API isteği hazırla
+    const requestData = {
+      clientKey: process.env.TWOCAPTCHA_API_KEY,
+      task: {
+        type: "RecaptchaV2TaskProxyless",
+        websiteURL: await page.url(),
+        websiteKey: siteKey,
+        isInvisible: false
+      }
+    };
 
-    console.log("Captcha çözüldü, yanıt uygulanıyor...");
+    // Görevi oluştur
+    console.log("Captcha görevi oluşturuluyor...");
+    const createTaskResponse = await axios.post('https://api.2captcha.com/createTask', requestData);
+
+    if (createTaskResponse.data.errorId !== 0) {
+      throw new Error(`2captcha hata: ${createTaskResponse.data.errorDescription}`);
+    }
+
+    const taskId = createTaskResponse.data.taskId;
+    console.log("Görev oluşturuldu, ID:", taskId);
+
+    // Sonucu bekle
+    let captchaToken = null;
+    for (let i = 0; i < 30; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const resultResponse = await axios.post('https://api.2captcha.com/getTaskResult', {
+        clientKey: process.env.TWOCAPTCHA_API_KEY,
+        taskId: taskId
+      });
+
+      if (resultResponse.data.status === 'ready') {
+        captchaToken = resultResponse.data.solution.gRecaptchaResponse;
+        break;
+      }
+
+      if (resultResponse.data.errorId !== 0) {
+        throw new Error(`2captcha hata: ${resultResponse.data.errorDescription}`);
+      }
+
+      console.log("Captcha henüz hazır değil, bekleniyor...");
+    }
+
+    if (!captchaToken) {
+      throw new Error('Captcha çözümü zaman aşımına uğradı');
+    }
+
+    console.log("Captcha başarıyla çözüldü!");
 
     // Çözümü sayfaya uygula
     await page.evaluate((token) => {
-      // reCAPTCHA v3 için
-      if (typeof grecaptcha !== 'undefined' && grecaptcha.enterprise) {
-        grecaptcha.enterprise.execute = () => Promise.resolve(token);
-      }
-      
       // reCAPTCHA v2 için
       const textarea = document.getElementById('g-recaptcha-response') || 
                       document.createElement('textarea');
@@ -92,7 +129,7 @@ async function solveCaptcha(page) {
       if (typeof window.captchaCallback === 'function') {
         window.captchaCallback(token);
       }
-    }, result.data);
+    }, captchaToken);
 
     // Token uygulandıktan sonra kısa bir bekleme
     await page.waitForTimeout(2000);
@@ -100,7 +137,6 @@ async function solveCaptcha(page) {
     return true;
   } catch (error) {
     console.error("Captcha çözme hatası:", error);
-    await sendTelegramMessage(`❌ <b>Captcha Hatası!</b>\n\n${error.message}`);
     return false;
   }
 }
@@ -199,6 +235,8 @@ async function fillAppointmentForm() {
     await page.locator('[id="__BVID__125"]').getByRole('combobox').selectOption('2');
     await page.locator('[id="__BVID__132"]').getByRole('combobox').selectOption('16');
     await page.locator('[id="__BVID__129"]').getByRole('combobox').selectOption('3');
+
+    await page.getByLabel('2').locator('div').filter({ hasText: 'Başvuru Yapacak Kişi Sayısı*' }).nth(1).click();
     
     // TC Kimlik numaralarını doldur
     console.log("TC Kimlik numaraları dolduruluyor...");
@@ -211,8 +249,6 @@ async function fillAppointmentForm() {
       await page.locator(`[id="${fieldId}"]`).fill(tcNo);
       await page.waitForTimeout(1000);
     }
-
-    await page.getByLabel('2').locator('div').filter({ hasText: 'Başvuru Yapacak Kişi Sayısı*' }).nth(1).click();
     
     // Captcha çözme ve form gönderme
     console.log("Captcha çözülüyor...");
@@ -231,15 +267,13 @@ async function fillAppointmentForm() {
     // Sonuç için bekle
     await page.waitForTimeout(5000);
 
-    console.log("Randevu formu başarıyla dolduruldu!");
-    await sendTelegramMessage("✅ <b>Başarılı!</b>\n\nRandevu formu dolduruldu.");
-    
+    console.log("Randevu formu başarıyla dolduruldu!");    
   } catch (error) {
     console.error("Form doldurma hatası:", error);
-    await sendTelegramMessage(`❌ <b>Hata!</b>\n\nForm doldurulurken bir hata oluştu: ${error.message}`);
   } finally {
     if (process.env.NODE_ENV !== 'development') {
-      await browser.close();
+      /* await browser.close(); */
+      await page.getByText('Sonraki').click();
     }
   }
 }
