@@ -2,6 +2,9 @@ require("dotenv").config();
 const { chromium } = require("playwright");
 const cron = require("node-cron");
 const axios = require("axios");
+const { Solver } = require('2captcha');
+
+const solver = new Solver(process.env.TWOCAPTCHA_API_KEY);
 
 async function sendTelegramMessage(message) {
   try {
@@ -16,6 +19,48 @@ async function sendTelegramMessage(message) {
     });
   } catch (error) {
     console.error('Telegram mesajı gönderilemedi:', error);
+  }
+}
+
+async function solveCaptcha(page) {
+  try {
+    console.log("Captcha çözülüyor...");
+    
+    // Sayfadaki reCAPTCHA elementini bul
+    const siteKey = await page.evaluate(() => {
+      const iframe = document.querySelector('iframe[src*="recaptcha"]');
+      if (iframe) {
+        const url = new URL(iframe.src);
+        return url.searchParams.get('k');
+      }
+      return null;
+    });
+
+    if (!siteKey) {
+      console.log("Captcha bulunamadı, devam ediliyor...");
+      return true;
+    }
+
+    console.log("reCAPTCHA site key bulundu:", siteKey);
+
+    // 2captcha ile captcha'yı çöz
+    const result = await solver.recaptcha({
+      sitekey: siteKey,
+      url: page.url(),
+      invisible: true
+    });
+
+    console.log("Captcha çözüldü, yanıt uygulanıyor...");
+
+    // Çözümü sayfaya uygula
+    await page.evaluate((token) => {
+      window.grecaptcha.enterprise.execute = () => Promise.resolve(token);
+    }, result.data);
+
+    return true;
+  } catch (error) {
+    console.error("Captcha çözme hatası:", error);
+    return false;
   }
 }
 
@@ -77,7 +122,7 @@ async function fillAppointmentForm() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  try {    
+  try {
     // Siteye git
     await page.goto('https://basvuru.kosmosvize.com.tr/appointmentform');
     await page.locator('#cities').press('Tab');
@@ -102,7 +147,15 @@ async function fillAppointmentForm() {
     await page.getByLabel('2').locator('div').filter({ hasText: 'Başvuru Yapacak Kişi Sayısı*' }).nth(1).click();
     await page.getByText('Sonraki').click();
     await page.waitForTimeout(5000);
+    
+    // Form gönderildikten sonra ikinci bir captcha kontrolü
+    const secondCaptchaSolved = await solveCaptcha(page);
+    if (!secondCaptchaSolved) {
+      throw new Error("İkinci captcha çözülemedi!");
+    }
+
     console.log("Randevu formu başarıyla dolduruldu!");
+    
   } catch (error) {
     console.error("Form doldurma hatası:", error);
   } finally {
