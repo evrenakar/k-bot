@@ -112,10 +112,28 @@ async function fillAppointmentForm() {
   }
 }
 
+// Mesai saatlerini kontrol et (09:00-16:59)
+function isWorkingHours() {
+  const now = new Date();
+  const hours = now.getHours();
+  const day = now.getDay();
+  
+  // Hafta içi mi? (1-5 arası, Pazartesi-Cuma)
+  const isWeekday = day >= 1 && day <= 5;
+  // Mesai saatleri içinde mi? (09:00-16:59)
+  const isDuringWorkHours = hours >= 9 && hours < 17;
+  
+  return isWeekday && isDuringWorkHours;
+}
+
 // Her 10 dakikada bir kontrol et
 cron.schedule("*/10 * * * *", () => {
-  console.log("Hikaye kontrolü yapılıyor...");
-  checkInstagramStory();
+  if (isWorkingHours()) {
+    console.log("Mesai saatleri içinde, hikaye kontrolü yapılıyor...");
+    checkInstagramStory();
+  } else {
+    console.log("Mesai saatleri dışında, kontrol yapılmıyor.");
+  }
 });
 
 // İlk kontrolü hemen yap
