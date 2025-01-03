@@ -73,10 +73,7 @@ async function checkInstagramStory() {
 }
 
 async function fillAppointmentForm() {
-  const browser = await chromium.launch({ 
-    headless: true,
-    args: ['--no-sandbox']
-  });
+  const browser = await chromium.launch({ headless: false });
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -129,7 +126,7 @@ function isWorkingHours() {
 
 // Her 10 dakikada bir kontrol et
 cron.schedule("*/10 * * * *", () => {
-  checkInstagramStory();
+  /* checkInstagramStory(); */
   /* if (isWorkingHours()) {
     console.log("Mesai saatleri içinde, hikaye kontrolü yapılıyor...");
     checkInstagramStory();
@@ -140,4 +137,5 @@ cron.schedule("*/10 * * * *", () => {
 
 // İlk kontrolü hemen yap
 console.log("Bot başlatılıyor...");
-checkInstagramStory();
+/* checkInstagramStory(); */
+fillAppointmentForm();
